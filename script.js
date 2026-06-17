@@ -7,9 +7,10 @@ const categories = [
 let currentCategory = null;
 let currentPage = 0;
 let totalPages = 0;
-let zoomLevel = 1;
-let touchStartX = 0;
-let touchEndX = 0;
+let isDragging = false;
+let startX = 0;
+let currentX = 0;
+let dragThreshold = 100;
 
 const homeView = document.getElementById('home-view');
 const bookView = document.getElementById('book-view');
@@ -43,7 +44,6 @@ function openBook(catId) {
     
     totalPages = currentCategory.count;
     currentPage = 0;
-    zoomLevel = 1;
     
     // Sahifalarni yaratish
     book.innerHTML = '';
@@ -54,12 +54,26 @@ function openBook(catId) {
         const page = document.createElement('div');
         page.className = 'page';
         page.style.zIndex = totalPages - i;
+        page.dataset.index = i;
+        
+        // Oldingi va keyingi sahifa rasmlari
+        const prevNum = (i > 0) ? (i - 1).toString().padStart(2, '0') : null;
+        const nextNum = (i < totalPages - 1) ? (i + 1).toString().padStart(2, '0') : null;
+        
         page.innerHTML = `
-            <div class="page-content">
+            <div class="page-front">
                 <img src="${src}" alt="Sahifa ${i + 1}" loading="lazy">
             </div>
+            <div class="page-back">
+                ${nextNum ? `<img src="${encodeURIComponent(currentCategory.folder)}/${nextNum}.webp" alt="Sahifa ${i + 2}" loading="lazy">` : '<div style="background:#fef3c7;width:100%;height:100%;"></div>'}
+            </div>
         `;
+        
         book.appendChild(page);
+        
+        // Event listeners
+        page.addEventListener('mousedown', startDrag);
+        page.addEventListener('touchstart', startDrag, { passive: false });
     }
     
     updatePageIndicator();
@@ -76,101 +90,92 @@ function showView(viewId) {
 function goHome() {
     showView('home-view');
     currentPage = 0;
-    zoomLevel = 1;
 }
 
-// 4. Sahifa navigatsiyasi
-function nextPage() {
-    if (currentPage >= totalPages - 1) return;
+// 4. Drag funksiyalari
+function startDrag(e) {
+    if (currentPage >= totalPages - 1) return; // Oxirgi sahifada drag yo'q
     
-    const pages = document.querySelectorAll('.page');
-    pages[currentPage].classList.add('flipped');
-    currentPage++;
-    updatePageIndicator();
-}
-
-function prevPage() {
-    if (currentPage <= 0) return;
+    isDragging = true;
+    startX = e.type === 'mousedown' ? e.clientX : e.touches[0].clientX;
     
-    currentPage--;
-    const pages = document.querySelectorAll('.page');
-    pages[currentPage].classList.remove('flipped');
-    updatePageIndicator();
+    const page = document.querySelectorAll('.page')[currentPage];
+    page.classList.add('flipping');
+    
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchmove', drag, { passive: false });
+    document.addEventListener('touchend', endDrag);
 }
 
+function drag(e) {
+    if (!isDragging) return;
+    
+    e.preventDefault();
+    currentX = e.type === 'mousemove' ? e.clientX : e.touches[0].clientX;
+    const diff = startX - currentX;
+    
+    const page = document.querySelectorAll('.page')[currentPage];
+    const rotation = Math.max(-180, Math.min(0, (diff / 300) * -180));
+    
+    page.style.transform = `rotateY(${rotation}deg)`;
+}
+
+function endDrag(e) {
+    if (!isDragging) return;
+    
+    isDragging = false;
+    const diff = startX - currentX;
+    const page = document.querySelectorAll('.page')[currentPage];
+    
+    page.classList.remove('flipping');
+    
+    // 50% dan oshganda to'liq varoqlash
+    if (Math.abs(diff) > dragThreshold) {
+        if (diff > 0 && currentPage < totalPages - 1) {
+            // Keyingi sahifaga
+            page.classList.add('flipped');
+            page.style.transform = '';
+            currentPage++;
+            updatePageIndicator();
+        } else {
+            // Orqaga qaytish
+            page.style.transform = '';
+        }
+    } else {
+        // Orqaga qaytish
+        page.style.transform = '';
+    }
+    
+    document.removeEventListener('mousemove', drag);
+    document.removeEventListener('mouseup', endDrag);
+    document.removeEventListener('touchmove', drag);
+    document.removeEventListener('touchend', endDrag);
+}
+
+// 5. Sahifa indikatorini yangilash
 function updatePageIndicator() {
     document.getElementById('current-page').textContent = currentPage + 1;
     document.getElementById('total-pages').textContent = totalPages;
-}
-
-// 5. Zoom funksiyalari
-function zoomIn() {
-    zoomLevel = Math.min(zoomLevel + 0.25, 3);
-    applyZoom();
-}
-
-function zoomOut() {
-    zoomLevel = Math.max(zoomLevel - 0.25, 0.5);
-    applyZoom();
-}
-
-function resetZoom() {
-    zoomLevel = 1;
-    applyZoom();
-}
-
-function applyZoom() {
-    const currentPageElement = document.querySelectorAll('.page')[currentPage];
-    if (currentPageElement) {
-        const content = currentPageElement.querySelector('.page-content');
-        content.style.transform = `scale(${zoomLevel})`;
-    }
 }
 
 // 6. Klaviatura boshqaruvi
 document.addEventListener('keydown', (e) => {
     if (!bookView.classList.contains('active')) return;
     
-    if (e.key === 'ArrowRight') nextPage();
-    if (e.key === 'ArrowLeft') prevPage();
+    if (e.key === 'ArrowRight' && currentPage < totalPages - 1) {
+        const page = document.querySelectorAll('.page')[currentPage];
+        page.classList.add('flipped');
+        currentPage++;
+        updatePageIndicator();
+    }
+    if (e.key === 'ArrowLeft' && currentPage > 0) {
+        currentPage--;
+        const page = document.querySelectorAll('.page')[currentPage];
+        page.classList.remove('flipped');
+        updatePageIndicator();
+    }
     if (e.key === 'Escape') goHome();
-    if (e.key === '+') zoomIn();
-    if (e.key === '-') zoomOut();
-});
-
-// 7. Touch gestures (mobil uchun)
-book.addEventListener('touchstart', (e) => {
-    touchStartX = e.touches[0].clientX;
-});
-
-book.addEventListener('touchend', (e) => {
-    touchEndX = e.changedTouches[0].clientX;
-    handleSwipe();
-});
-
-function handleSwipe() {
-    const swipeThreshold = 50;
-    const diff = touchStartX - touchEndX;
-    
-    if (Math.abs(diff) > swipeThreshold) {
-        if (diff > 0) {
-            nextPage(); // Chapga surish - keyingi sahifa
-        } else {
-            prevPage(); // O'ngga surish - oldingi sahifa
-        }
-    }
-}
-
-// 8. Mouse wheel bilan zoom (desktop)
-book.addEventListener('wheel', (e) => {
-    if (e.ctrlKey) {
-        e.preventDefault();
-        if (e.deltaY < 0) {
-            zoomIn();
-        } else {
-            zoomOut();
-        }
-    }
 });
 
 // Sayt yuklanganda
