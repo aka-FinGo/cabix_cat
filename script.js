@@ -18,8 +18,8 @@ function renderHome() {
     let html = '<div class="category-grid">';
     
     categories.forEach(cat => {
-        // Faqat 00.jpg ni yuklaymiz (preview uchun)
-        const previewSrc = `${encodeURIComponent(cat.folder)}/00.jpg`;
+        // WEBP formatiga o'zgartirildi
+        const previewSrc = `${encodeURIComponent(cat.folder)}/00.webp`;
         html += `
             <div class="category-card" onclick="openCategory('${cat.id}')">
                 <img src="${previewSrc}" alt="${cat.name}" loading="lazy">
@@ -36,7 +36,7 @@ function renderHome() {
     window.scrollTo(0, 0);
 }
 
-// 2. Kategoriyani ochish (Rasmlarni faqat shu paytda yaratamiz - DOM yengil qoladi)
+// 2. Kategoriyani ochish (Rasmlarni faqat shu paytda yaratamiz)
 function openCategory(catId) {
     const cat = categories.find(c => c.id === catId);
     if (!cat) return;
@@ -53,12 +53,11 @@ function openCategory(catId) {
     `;
     
     for (let i = 0; i < cat.count; i++) {
-        // 0, 1, 2... ni 00, 01, 02... ga aylantiramiz
         const num = i.toString().padStart(2, '0');
-        const src = `${encodeURIComponent(cat.folder)}/${num}.jpg`;
+        // WEBP formatiga o'zgartirildi
+        const src = `${encodeURIComponent(cat.folder)}/${num}.webp`;
         currentImagesList.push(src);
         
-        // loading="lazy" brauzerga rasmlarni navbat bilan yuklashni buyuradi
         html += `
             <div class="gallery-item" onclick="openLightbox(${i})">
                 <img src="${src}" alt="${cat.name} ${num}" loading="lazy">
@@ -76,19 +75,18 @@ function openLightbox(index) {
     currentImageIndex = index;
     updateLightboxImage();
     lightbox.classList.add('active');
-    document.body.style.overflow = 'hidden'; // Orqa fon qimirlamasligi uchun
+    document.body.style.overflow = 'hidden';
 }
 
 function closeLightbox() {
     lightbox.classList.remove('active');
-    document.body.style.overflow = ''; // Skrollni qaytarish
+    document.body.style.overflow = '';
     setTimeout(() => {
-        lightboxImg.src = ''; // Xotirani tozalash
+        lightboxImg.src = '';
     }, 200);
 }
 
 function updateLightboxImage() {
-    // Yuklanayotganda tezroq ko'rinishi uchun
     lightboxImg.style.opacity = '0.5';
     lightboxImg.src = currentImagesList[currentImageIndex];
     lightboxImg.onload = () => {
@@ -97,11 +95,10 @@ function updateLightboxImage() {
 }
 
 function changeImage(direction, event) {
-    if (event) event.stopPropagation(); // Tugma bosilganda yopilishini oldini oladi
+    if (event) event.stopPropagation();
     
     currentImageIndex += direction;
     
-    // Aylanma harakat (oxiridan boshiga, boshidan oxiriga)
     if (currentImageIndex < 0) {
         currentImageIndex = currentImagesList.length - 1;
     } else if (currentImageIndex >= currentImagesList.length) {
@@ -111,7 +108,7 @@ function changeImage(direction, event) {
     updateLightboxImage();
 }
 
-// Klaviatura orqali boshqarish (kompyuter uchun)
+// Klaviatura orqali boshqarish
 document.addEventListener('keydown', (e) => {
     if (!lightbox.classList.contains('active')) return;
     if (e.key === 'Escape') closeLightbox();
