@@ -5,9 +5,9 @@
 'use strict';
 
 const CATS = [
-    { id:'akril',   name:'Akril',   badge:'A1', folder:'AKRIL (A1)',   count:11, desc:'Zamonaviy akril yuzalar kolleksiyasi' },
-    { id:'korpus',  name:'Korpus',  badge:'K1', folder:'KORPUS (K1)',  count:11, desc:'Mustahkam korpus konstruksiyalari'     },
-    { id:'laminat', name:'Laminat', badge:'L1', folder:'LAMINAT (L1)', count:11, desc:'Premium laminat qoplamalar seriyasi'   }
+    { id:'akril',   name:'Akril',   badge:'A1', folder:'akril',   count:11, desc:'Zamonaviy akril yuzalar kolleksiyasi' },
+    { id:'korpus',  name:'Korpus',  badge:'K1', folder:'korpus',  count:11, desc:'Mustahkam korpus konstruksiyalari'     },
+    { id:'laminat', name:'Laminat', badge:'L1', folder:'laminat', count:11, desc:'Premium laminat qoplamalar seriyasi'   }
 ];
 
 let pf         = null;
@@ -31,7 +31,7 @@ function renderHome() {
         card.innerHTML = `
             <span class="card-badge">${cat.badge}</span>
             <div class="card-img-wrap">
-                <img class="card-img" src="${enc(cat.folder)}/00.webp" alt="${cat.name}" loading="lazy"
+                <img class="card-img" src="${cat.folder}/00.webp" alt="${cat.name}" loading="lazy"
                      onerror="this.style.minHeight='230px'">
             </div>
             <div class="card-body">
@@ -59,16 +59,17 @@ function openBook(catId) {
 
     currentCat = cat;
 
-    // 1) Avval ViewNI ko'rsatamiz — shunda barcha elementlar DOM da bo'ladi
+    // 1) Avval view ni ko'rsatamiz — elementlar DOM da bo'ladi
     showLoading(true);
     showView('book');
 
     // 2) Eski PageFlip ni yo'q qilamiz
     destroyFlip();
 
-    // 3) Endi elementlar ko'rinib turibdi — xavfsiz ishlatish mumkin
+    // 3) Elementlarni tozalaymiz
     const flipEl     = $('flipbook');
     const thumbsList = $('thumbs-list');
+    if (!flipEl || !thumbsList) { showLoading(false); return; }
 
     flipEl.innerHTML     = '';
     thumbsList.innerHTML = '';
@@ -81,7 +82,7 @@ function openBook(catId) {
     // 4) Sahifalarni quramiz
     for (let i = 0; i < cat.count; i++) {
         const num = String(i).padStart(2, '0');
-        const src = `${enc(cat.folder)}/${num}.webp`;
+        const src = `${cat.folder}/${num}.webp`;
 
         const pg  = document.createElement('div');
         pg.className = 'page' + (i === 0 || i === cat.count - 1 ? ' --hard' : '');
@@ -98,7 +99,7 @@ function openBook(catId) {
 
     resetZoom();
 
-    // 5) Layout hisoblangandan keyin PageFlip ni ishga tushiramiz
+    // 5) PageFlip ni ishga tushiramiz
     requestAnimationFrame(() => requestAnimationFrame(() => {
         setTimeout(initPageFlip, 250);
     }));
@@ -151,13 +152,10 @@ function initPageFlip() {
 // ================================================================
 function goHome() {
     destroyFlip();
-
     const flipEl = $('flipbook');
     if (flipEl) flipEl.innerHTML = '';
-
-    const thumbsList = $('thumbs-list');
-    if (thumbsList) thumbsList.innerHTML = '';
-
+    const tl = $('thumbs-list');
+    if (tl) tl.innerHTML = '';
     closeThumbs();
     resetZoom();
     showView('home');
@@ -173,22 +171,21 @@ function destroyFlip() {
 // THUMBNAILS
 // ================================================================
 function buildThumb(src, idx) {
-    const thumbsList = $('thumbs-list');
-    if (!thumbsList) return;
-
+    const tl = $('thumbs-list');
+    if (!tl) return;
     const item = document.createElement('div');
     item.className = 'thumb-item' + (idx === 0 ? ' on' : '');
     item.dataset.i = idx;
     item.innerHTML = `<img src="${src}" alt="Sahifa ${idx+1}" loading="lazy"><div class="thumb-num">${idx+1}</div>`;
     item.addEventListener('click', () => { if (pf) pf.flip(idx); });
-    thumbsList.appendChild(item);
+    tl.appendChild(item);
 }
 
 function activateThumb(idx) {
-    const list = $('thumbs-list');
-    if (!list) return;
-    list.querySelectorAll('.thumb-item').forEach((e, i) => e.classList.toggle('on', i === idx));
-    const active = list.querySelector('.thumb-item.on');
+    const tl = $('thumbs-list');
+    if (!tl) return;
+    tl.querySelectorAll('.thumb-item').forEach((e, i) => e.classList.toggle('on', i === idx));
+    const active = tl.querySelector('.thumb-item.on');
     if (active) active.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
@@ -329,11 +326,6 @@ function showLoading(show) {
     const ls = $('loading-screen');
     if (ls) ls.classList.toggle('show', show);
 }
-
-// ================================================================
-// HELPERS
-// ================================================================
-function enc(f) { return encodeURIComponent(f); }
 
 // ================================================================
 // INIT
