@@ -165,6 +165,19 @@ function destroyFlip() {
     if (!pf) return;
     try { pf.destroy(); } catch(e) {}
     pf = null;
+
+    // MUHIM: page-flip kutubxonasining destroy() metodi #flipbook
+    // elementining ICHINI emas, balki O'ZINI butunlay DOM'dan olib
+    // tashlaydi (this.block.remove()). Shu sababli keyingi safar
+    // openBook() chaqirilganda $('flipbook') -> null qaytaradi va
+    // funksiya jim chiqib ketadi. Shuning uchun #flipbook ni har safar
+    // qaytadan yaratib, joyiga qo'yib qo'yamiz.
+    const zoomWrapper = $('zoom-wrapper');
+    if (zoomWrapper && !$('flipbook')) {
+        const fresh = document.createElement('div');
+        fresh.id = 'flipbook';
+        zoomWrapper.appendChild(fresh);
+    }
 }
 
 // ================================================================
