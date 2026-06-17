@@ -10,22 +10,21 @@ const CATS = [
     { id:'laminat', name:'Laminat', badge:'L1', folder:'LAMINAT (L1)', count:11, desc:'Premium laminat qoplamalar seriyasi'   }
 ];
 
-// ─── State ───────────────────────────────────────────────────────
 let pf         = null;
 let currentCat = null;
 let zoom       = 1;
 let thumbsOpen = false;
-let _opening   = false;
 
-// ─── DOM ─────────────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
+const $ = id => document.getElementById(id);
 
 // ================================================================
 // HOME
 // ================================================================
 function renderHome() {
-    const catGrid = $('category-grid');
-    catGrid.innerHTML = '';
+    const grid = $('category-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
     CATS.forEach(cat => {
         const card = document.createElement('div');
         card.className = 'cat-card';
@@ -47,7 +46,7 @@ function renderHome() {
                 </div>
             </div>`;
         card.addEventListener('click', () => openBook(cat.id));
-        catGrid.appendChild(card);
+        grid.appendChild(card);
     });
 }
 
@@ -55,27 +54,31 @@ function renderHome() {
 // OPEN BOOK
 // ================================================================
 function openBook(catId) {
-    if (_opening) return;
     const cat = CATS.find(c => c.id === catId);
     if (!cat) return;
 
-    _opening   = true;
     currentCat = cat;
 
+    // 1) Avval ViewNI ko'rsatamiz — shunda barcha elementlar DOM da bo'ladi
     showLoading(true);
+    showView('book');
+
+    // 2) Eski PageFlip ni yo'q qilamiz
     destroyFlip();
 
-    // Flipbook ni tozalaymiz
-    const flipEl = $('flipbook');
-    flipEl.innerHTML = '';
-    $('thumbs-list').innerHTML = '';
+    // 3) Endi elementlar ko'rinib turibdi — xavfsiz ishlatish mumkin
+    const flipEl     = $('flipbook');
+    const thumbsList = $('thumbs-list');
+
+    flipEl.innerHTML     = '';
+    thumbsList.innerHTML = '';
 
     $('reader-title').textContent = `${cat.name.toUpperCase()} (${cat.badge})`;
     $('total-pages').textContent  = cat.count;
     $('page-input').value         = 1;
     $('page-input').max           = cat.count;
 
-    // Sahifalarni quramiz
+    // 4) Sahifalarni quramiz
     for (let i = 0; i < cat.count; i++) {
         const num = String(i).padStart(2, '0');
         const src = `${enc(cat.folder)}/${num}.webp`;
@@ -93,10 +96,9 @@ function openBook(catId) {
         buildThumb(src, i);
     }
 
-    showView('book');
     resetZoom();
 
-    // DOM render bo'lgandan keyin PageFlip ni ishga tushiramiz
+    // 5) Layout hisoblangandan keyin PageFlip ni ishga tushiramiz
     requestAnimationFrame(() => requestAnimationFrame(() => {
         setTimeout(initPageFlip, 250);
     }));
@@ -104,13 +106,10 @@ function openBook(catId) {
 
 function initPageFlip() {
     const flipEl = $('flipbook');
-    const pages  = flipEl ? flipEl.querySelectorAll('.page') : [];
+    if (!flipEl) { showLoading(false); return; }
 
-    if (!pages.length) {
-        showLoading(false);
-        _opening = false;
-        return;
-    }
+    const pages = flipEl.querySelectorAll('.page');
+    if (!pages.length) { showLoading(false); return; }
 
     try {
         pf = new St.PageFlip(flipEl, {
@@ -132,10 +131,9 @@ function initPageFlip() {
         pf.loadFromHTML(pages);
 
         pf.on('flip', e => {
-            const pg = e.data;
-            $('page-input').value = pg + 1;
+            $('page-input').value = e.data + 1;
             updateNav();
-            activateThumb(pg);
+            activateThumb(e.data);
         });
 
         pf.on('changeState', updateNav);
@@ -146,18 +144,20 @@ function initPageFlip() {
     }
 
     showLoading(false);
-    _opening = false;
 }
 
 // ================================================================
 // GO HOME
 // ================================================================
 function goHome() {
-    _opening = false;
     destroyFlip();
+
     const flipEl = $('flipbook');
     if (flipEl) flipEl.innerHTML = '';
-    $('thumbs-list').innerHTML = '';
+
+    const thumbsList = $('thumbs-list');
+    if (thumbsList) thumbsList.innerHTML = '';
+
     closeThumbs();
     resetZoom();
     showView('home');
@@ -173,17 +173,22 @@ function destroyFlip() {
 // THUMBNAILS
 // ================================================================
 function buildThumb(src, idx) {
+    const thumbsList = $('thumbs-list');
+    if (!thumbsList) return;
+
     const item = document.createElement('div');
     item.className = 'thumb-item' + (idx === 0 ? ' on' : '');
     item.dataset.i = idx;
     item.innerHTML = `<img src="${src}" alt="Sahifa ${idx+1}" loading="lazy"><div class="thumb-num">${idx+1}</div>`;
     item.addEventListener('click', () => { if (pf) pf.flip(idx); });
-    $('thumbs-list').appendChild(item);
+    thumbsList.appendChild(item);
 }
 
 function activateThumb(idx) {
-    $('thumbs-list').querySelectorAll('.thumb-item').forEach((e, i) => e.classList.toggle('on', i === idx));
-    const active = $('thumbs-list').querySelector('.thumb-item.on');
+    const list = $('thumbs-list');
+    if (!list) return;
+    list.querySelectorAll('.thumb-item').forEach((e, i) => e.classList.toggle('on', i === idx));
+    const active = list.querySelector('.thumb-item.on');
     if (active) active.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
@@ -216,9 +221,9 @@ function updateNav() {
     if (!pf) return;
     const cur   = pf.getCurrentPageIndex();
     const total = pf.getPageCount();
-    $('prev-btn').disabled  = cur <= 0;
-    $('next-btn').disabled  = cur >= total - 1;
-    $('page-input').value   = cur + 1;
+    $('prev-btn').disabled = cur <= 0;
+    $('next-btn').disabled = cur >= total - 1;
+    $('page-input').value  = cur + 1;
 }
 
 // ================================================================
@@ -228,18 +233,23 @@ const ZOOM_MIN = 0.4, ZOOM_MAX = 3.0, ZOOM_STEP = 0.25;
 
 function setZoom(z) {
     zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
-    $('zoom-wrapper').style.transform = `scale(${zoom})`;
-    $('zoom-display').textContent     = Math.round(zoom * 100) + '%';
+    const w = $('zoom-wrapper');
+    if (w) w.style.transform = `scale(${zoom})`;
+    const d = $('zoom-display');
+    if (d) d.textContent = Math.round(zoom * 100) + '%';
 }
 function zoomIn()    { setZoom(zoom + ZOOM_STEP); }
 function zoomOut()   { setZoom(zoom - ZOOM_STEP); }
 function resetZoom() { setZoom(1); }
 
-$('flipbook-area').addEventListener('wheel', e => {
-    if (!e.ctrlKey && !e.metaKey) return;
-    e.preventDefault();
-    e.deltaY < 0 ? zoomIn() : zoomOut();
-}, { passive: false });
+const flipArea = $('flipbook-area');
+if (flipArea) {
+    flipArea.addEventListener('wheel', e => {
+        if (!e.ctrlKey && !e.metaKey) return;
+        e.preventDefault();
+        e.deltaY < 0 ? zoomIn() : zoomOut();
+    }, { passive: false });
+}
 
 // ================================================================
 // FULLSCREEN
@@ -250,8 +260,10 @@ function toggleFullscreen() {
 }
 
 document.addEventListener('fullscreenchange', () => {
-    const isFs = !!document.fullscreenElement;
-    $('fs-icon').innerHTML = isFs
+    const isFs   = !!document.fullscreenElement;
+    const fsIcon = $('fs-icon');
+    if (!fsIcon) return;
+    fsIcon.innerHTML = isFs
         ? `<polyline points="4,14 4,20 10,20"/><polyline points="20,10 20,4 14,4"/><line x1="14" y1="10" x2="20" y2="4"/><line x1="4" y1="20" x2="10" y2="14"/>`
         : `<polyline points="15,3 21,3 21,9"/><polyline points="9,21 3,21 3,15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>`;
     $('fs-btn').classList.toggle('on', isFs);
@@ -261,7 +273,8 @@ document.addEventListener('fullscreenchange', () => {
 // KEYBOARD
 // ================================================================
 document.addEventListener('keydown', e => {
-    if (!$('book-view').classList.contains('active')) return;
+    const bv = $('book-view');
+    if (!bv || !bv.classList.contains('active')) return;
     if (e.target === $('page-input')) return;
     switch(e.key) {
         case 'ArrowRight': case 'ArrowDown': case ' ': e.preventDefault(); flipNext(); break;
@@ -278,10 +291,13 @@ document.addEventListener('keydown', e => {
 // ================================================================
 // PAGE INPUT
 // ================================================================
-$('page-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') { jumpToPage($('page-input').value); $('page-input').blur(); }
-});
-$('page-input').addEventListener('blur', () => jumpToPage($('page-input').value));
+const pageInput = $('page-input');
+if (pageInput) {
+    pageInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { jumpToPage(pageInput.value); pageInput.blur(); }
+    });
+    pageInput.addEventListener('blur', () => jumpToPage(pageInput.value));
+}
 
 // ================================================================
 // RESIZE
@@ -292,13 +308,15 @@ window.addEventListener('resize', () => { if (pf) try { pf.update(); } catch(e) 
 // VIEW SWITCHER
 // ================================================================
 function showView(which) {
+    const home = $('home-view');
+    const book = $('book-view');
     if (which === 'book') {
-        $('home-view').classList.remove('active');
-        $('book-view').classList.add('active');
+        if (home) home.classList.remove('active');
+        if (book) book.classList.add('active');
         document.body.style.overflow = 'hidden';
     } else {
-        $('book-view').classList.remove('active');
-        $('home-view').classList.add('active');
+        if (book) book.classList.remove('active');
+        if (home) home.classList.add('active');
         document.body.style.overflow = '';
         window.scrollTo(0, 0);
     }
@@ -307,7 +325,10 @@ function showView(which) {
 // ================================================================
 // LOADING
 // ================================================================
-function showLoading(show) { $('loading-screen').classList.toggle('show', show); }
+function showLoading(show) {
+    const ls = $('loading-screen');
+    if (ls) ls.classList.toggle('show', show);
+}
 
 // ================================================================
 // HELPERS
